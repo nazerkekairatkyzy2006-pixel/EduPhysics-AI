@@ -3,67 +3,613 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>EduPhysics AI</title>
+  <title>EduPhysics AI — Тұрақты электр тогы</title>
   <style>
-    body{font-family:system-ui,Arial;max-width:900px;margin:20px auto;padding:0 12px}
+    body{font-family:system-ui,Arial;max-width:1100px;margin:20px auto;padding:0 12px;line-height:1.35}
     .card{border:1px solid #ddd;border-radius:14px;padding:14px;margin:12px 0}
-    input,textarea,button{width:100%;padding:10px;border-radius:10px;border:1px solid #ccc;font-size:16px}
+    input,textarea,button,select{width:100%;padding:10px;border-radius:10px;border:1px solid #ccc;font-size:16px}
     button{cursor:pointer}
     .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-    pre{white-space:pre-wrap}
+    .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+    pre{white-space:pre-wrap;background:#f7f7f7;border-radius:10px;padding:10px;border:1px solid #eee}
+    code{background:#f1f1f1;padding:2px 6px;border-radius:6px}
+    .muted{color:#555}
+    .hidden{display:none}
+    .opt{margin:8px 0}
+    .pill{display:inline-block;padding:3px 8px;border:1px solid #ddd;border-radius:999px;margin:4px 6px 0 0;font-size:13px;background:#fafafa}
+    .good{border-color:#9bd39b;background:#f3fff3}
+    .bad{border-color:#e6a2a2;background:#fff3f3}
   </style>
 </head>
 <body>
   <h1>EduPhysics AI</h1>
+  <p class="muted">
+    Тақырып: <b>Тұрақты электр тогы</b>. Платформа 3 тесттен тұрады (әрқайсысы 10 сұрақ).
+    Әр сұрақтан кейін түсіндірме және “қате тегі” (misconception tag) шығады.
+    Соңында “Limited Memory summary” ретінде топ-3 қате мен ұсыныс беріледі.
+  </p>
 
+  <!-- Оқушы -->
   <div class="card">
     <h2>Оқушы</h2>
     <div class="row">
       <input id="fio" placeholder="ФИО" />
-      <input id="klass" placeholder="Класс (например 10А)" />
+      <input id="klass" placeholder="Класс (мысалы 10А)" />
     </div>
   </div>
 
+  <!-- Тест таңдауы -->
   <div class="card">
-    <h2>Perplexity AI Tutor</h2>
-    <textarea id="q" rows="3" placeholder="Сұрағыңды жаз..."></textarea>
-    <button id="askBtn">Сұрау (ЖИ)</button>
+    <h2>Тесттер</h2>
+    <div class="row3">
+      <button id="btnT1">Тест 1: Ом заңы</button>
+      <button id="btnT2">Тест 2: Қосылулар</button>
+      <button id="btnT3">Тест 3: Қуат/жұмыс</button>
+    </div>
+    <p class="muted" style="margin-top:10px">
+      Әр тест 10 сұрақтан тұрады. “Бастау” бассаң, сұрақтар кезекпен шығады.
+    </p>
+  </div>
+
+  <!-- QUIZ UI -->
+  <div class="card hidden" id="quizCard">
+    <h2 id="quizTitle">Тест</h2>
+    <div class="muted" id="progress">1/10</div>
+
+    <h3 id="qText" style="margin-top:10px">Сұрақ</h3>
+    <div id="options"></div>
+
+    <div class="row" style="margin-top:10px">
+      <button id="btnNext" disabled>Келесі</button>
+      <button id="btnFinish" class="hidden">Аяқтау</button>
+    </div>
+
+    <h3 style="margin-top:14px">Кері байланыс</h3>
+    <pre id="feedback">Жауап таңда...</pre>
+  </div>
+
+  <!-- RESULTS -->
+  <div class="card hidden" id="resultsCard">
+    <h2>Нәтиже</h2>
+    <pre id="resultsText">...</pre>
+    <div id="topTags"></div>
+    <h3 style="margin-top:12px">Ұсыныстар</h3>
+    <ul id="recs"></ul>
+    <button id="btnBack" style="margin-top:10px">Тағы тест тапсыру</button>
+  </div>
+
+  <!-- Сызба + түсіндірме (критерий) -->
+  <div class="card">
+    <h2>Сызба + түсіндірме мәтін (критерий)</h2>
+    <h3>Деректер ағыны (Data Flow)</h3>
+    <pre>
+Оқушы → Тест таңдау → Сұраққа жауап → Тексеру → Қате тегі (tag) → Summary жаңарту
+     → Ұсыныс/түсіндірме → Мұғалімге/оқушыға нәтиже көрсету
+    </pre>
+
+    <h3>Limited Memory summary (не сақтаймыз?)</h3>
+    <pre>
+Сақтаймыз (қысқа ғана):
+- topic_mastery (қай бөлім әлсіз)
+- top-3 misconception tags (ең жиі қате)
+- last_seen (соңғы әрекет)
+- recommendations (3 ұсыныс)
+
+Сақтамаймыз:
+- барлық жауаптардың толық архивін ұзақ уақытқа
+(қажет болса тек соңғы 1 попытка ғана)
+    </pre>
+  </div>
+
+  <!-- Perplexity AI Tutor -->
+  <div class="card">
+    <h2>Perplexity AI Tutor (сұрақ қою)</h2>
+    <textarea id="aiQ" rows="3" placeholder="Мысалы: Неге параллель қосқанда R азаяды?"></textarea>
+    <button id="askBtn" style="margin-top:10px">Сұрау (ЖИ)</button>
     <h3>Жауап:</h3>
-    <pre id="a">...</pre>
+    <pre id="aiA">...</pre>
+    <p class="muted">
+      Егер бұл жерде “Нет PPLX_API_KEY…” шықса — Netlify-де Environment variable қою керек:
+      <code>PPLX_API_KEY</code>.
+    </p>
   </div>
 
 <script>
-  function buildSummary() {
-    return {
-      full_name: document.getElementById('fio').value || "Без имени",
-      class: document.getElementById('klass').value || "10",
-      topic_mastery: { E: 60, phi: 50, U: 55, A: 45 },
-      top_misconceptions: [
-        "Путает E и φ",
-        "Думает, что E ~ 1/r",
-        "Не понимает работу поля"
-      ],
-      recommendations: [
-        "Повтори: E = kq/r^2",
-        "Разница потенциалов: U = A/q",
-        "Реши 2 задачи на работу поля"
+  // =========================
+  // Вопросы (3 теста × 10) — (русские комментарии)
+  // =========================
+  const TESTS = {
+    t1: {
+      title: "Тест 1: Ом заңы және өлшем бірліктер",
+      questions: [
+        {
+          q: "Ом заңының дұрыс формуласы қайсы?",
+          opts: ["I = R / U", "I = U / R", "U = I / R", "R = U · I"],
+          correct: 1,
+          tag: "Ом заңы формуласы",
+          explain: "Ом заңы: ток күші кернеуге тура, кедергіге кері пропорционал: I = U/R.",
+          mini: "Мысал: U=12 В, R=6 Ω → I=12/6=2 A."
+        },
+        {
+          q: "Кернеудің өлшем бірлігі?",
+          opts: ["Ампер (A)", "Вольт (V)", "Ом (Ω)", "Ватт (W)"],
+          correct: 1,
+          tag: "Өлшем бірліктер",
+          explain: "Кернеу (U) Вольтпен (V) өлшенеді.",
+          mini: "Есіңде сақта: I—A, U—V, R—Ω, P—W."
+        },
+        {
+          q: "Кедергінің өлшем бірлігі?",
+          opts: ["Ом (Ω)", "Вольт (V)", "Ампер (A)", "Джоуль (J)"],
+          correct: 0,
+          tag: "Өлшем бірліктер",
+          explain: "Кедергі (R) Оммен (Ω) өлшенеді.",
+          mini: "R=2 Ω дегеніміз — 1 А ток үшін 2 В керек (U=IR)."
+        },
+        {
+          q: "I=2 A, R=5 Ω болса, U қанша?",
+          opts: ["2.5 V", "7 V", "10 V", "20 V"],
+          correct: 2,
+          tag: "Формуланы қолдану",
+          explain: "U = I·R. 2·5=10 В.",
+          mini: "Қате кетпе: көбейту/бөлу дұрыс па, формуланы тексер."
+        },
+        {
+          q: "U=9 V, I=3 A болса, R қанша?",
+          opts: ["27 Ω", "6 Ω", "3 Ω", "9 Ω"],
+          correct: 2,
+          tag: "Формуланы түрлендіру",
+          explain: "R = U/I. 9/3=3 Ω.",
+          mini: "R=U/I — Ом заңының түрлендірілген түрі."
+        },
+        {
+          q: "Егер R артса (U тұрақты), I қалай өзгереді?",
+          opts: ["Артады", "Кемиді", "Өзгермейді", "Алдымен артады, сосын кемиді"],
+          correct: 1,
+          tag: "Тәуелділіктер",
+          explain: "I = U/R. R артса, бөлшек кішірейеді → I кемиді.",
+          mini: "2 есе R артса → I 2 есе азаяды."
+        },
+        {
+          q: "Өткізгіштің кедергісі НЕге тәуелді болады? (ең толық)",
+          opts: ["Тек ток күшіне", "Тек кернеуге", "Материал, ұзындық, қима ауданы, температура", "Тек уақытқа"],
+          correct: 2,
+          tag: "Кедергі факторлары",
+          explain: "R материалға, ұзындыққа (L), қимаға (S) және температураға тәуелді.",
+          mini: "Ұзын болса — R үлкен; қима үлкен болса — R кіші."
+        },
+        {
+          q: "Ток күшінің өлшем бірлігі?",
+          opts: ["Ом (Ω)", "Ампер (A)", "Вольт (V)", "Ватт (W)"],
+          correct: 1,
+          tag: "Өлшем бірліктер",
+          explain: "Ток күші (I) Ампермен өлшенеді.",
+          mini: "I=1A — бір секундта 1 Кл заряд өтеді (I=q/t)."
+        },
+        {
+          q: "I=q/t формуласы нені білдіреді?",
+          opts: ["Кернеу анықтамасы", "Ток күші анықтамасы", "Кедергі анықтамасы", "Қуат анықтамасы"],
+          correct: 1,
+          tag: "Ток анықтамасы",
+          explain: "Ток күші — уақыт бірлігіндегі заряд: I=q/t.",
+          mini: "q=10 Кл, t=5 c → I=2 A."
+        },
+        {
+          q: "Ом заңының U үшін түрі?",
+          opts: ["U = I/R", "U = IR", "U = R/I", "U = I + R"],
+          correct: 1,
+          tag: "Ом заңы формуласы",
+          explain: "U = I·R.",
+          mini: "I=0.5 A, R=8 Ω → U=4 V."
+        }
+      ]
+    },
+    t2: {
+      title: "Тест 2: Тізбектей және параллель қосу",
+      questions: [
+        {
+          q: "Тізбектей қосқанда толық кедергі қалай табылады?",
+          opts: ["R = R1 + R2 + ...", "1/R = 1/R1 + 1/R2 + ...", "R = R1·R2", "R = R1 - R2"],
+          correct: 0,
+          tag: "Тізбектей қосу",
+          explain: "Тізбектей қосуда кедергілер қосылады: Rқ = R1 + R2 + ...",
+          mini: "R1=2 Ω, R2=3 Ω → Rқ=5 Ω."
+        },
+        {
+          q: "Параллель қосқанда дұрыс формула?",
+          opts: ["R = R1 + R2", "1/R = 1/R1 + 1/R2", "R = R1/R2", "R = R1 - R2"],
+          correct: 1,
+          tag: "Параллель қосу",
+          explain: "Параллель қосуда: 1/Rқ = 1/R1 + 1/R2 (+ ...).",
+          mini: "R1=6 Ω, R2=3 Ω → 1/R=1/6+1/3=1/2 → R=2 Ω."
+        },
+        {
+          q: "Тізбектей қосқанда ток күші (I) қалай болады?",
+          opts: ["Әр жерде әртүрлі", "Барлық жерде бірдей", "Тек бірінші резисторда болады", "Нөлге тең"],
+          correct: 1,
+          tag: "Тізбектей қасиет",
+          explain: "Тізбектей тізбекте ток барлық элементтерде бірдей өтеді.",
+          mini: "I бірдей, ал кернеу бөліктерге бөлінеді."
+        },
+        {
+          q: "Параллель қосқанда кернеу (U) қалай болады?",
+          opts: ["Әр тармақта бірдей", "Әр тармақта әртүрлі", "Нөл", "Тек бір тармақта болады"],
+          correct: 0,
+          tag: "Параллель қасиет",
+          explain: "Параллель тармақтардың кернеуі бірдей болады.",
+          mini: "U бірдей, ал ток тармақтарға бөлінеді."
+        },
+        {
+          q: "R1=4 Ω және R2=6 Ω тізбектей болса, Rқ=?",
+          opts: ["10 Ω", "2.4 Ω", "24 Ω", "6 Ω"],
+          correct: 0,
+          tag: "Тізбектей есеп",
+          explain: "Rқ=4+6=10 Ω.",
+          mini: "Тізбектей: жай қосасың."
+        },
+        {
+          q: "R1=4 Ω және R2=6 Ω параллель болса, Rқ шамамен?",
+          opts: ["10 Ω", "2.4 Ω", "24 Ω", "5 Ω"],
+          correct: 1,
+          tag: "Параллель есеп",
+          explain: "1/R=1/4+1/6= (3+2)/12=5/12 → R=12/5=2.4 Ω.",
+          mini: "Параллельде R әрқашан ең кішісінен де кіші."
+        },
+        {
+          q: "Параллель қосқанда ток күші қалай өзгереді?",
+          opts: ["Барлығы бірдей", "Тармақтарға бөлінеді, жалпы ток артады", "Нөлге түседі", "Тек бір тармақта қалады"],
+          correct: 1,
+          tag: "Параллель ток",
+          explain: "Жалпы ток I = I1 + I2 + ... (тармақтарға бөлінеді).",
+          mini: "Бір тармақ қосылса — жалпы ток көбейеді."
+        },
+        {
+          q: "Тізбектей қосуда кернеу қалай бөлінеді?",
+          opts: ["Бірдей болады", "Қосылады: U = U1 + U2 + ...", "Нөл", "Тек бір элементте болады"],
+          correct: 1,
+          tag: "Тізбектей кернеу",
+          explain: "Тізбектей: жалпы кернеу бөліктердің қосындысы.",
+          mini: "U=IR: R үлкен болса, U бөлігі де үлкен."
+        },
+        {
+          q: "Екі бірдей резистор (R және R) параллель қосылса, Rқ=?",
+          opts: ["2R", "R/2", "R", "R^2"],
+          correct: 1,
+          tag: "Параллель заңдылық",
+          explain: "Екі бірдей R параллель → Rқ=R/2.",
+          mini: "Мысал: 10 Ω және 10 Ω → 5 Ω."
+        },
+        {
+          q: "Екі бірдей резистор (R және R) тізбектей қосылса, Rқ=?",
+          opts: ["2R", "R/2", "R", "0"],
+          correct: 0,
+          tag: "Тізбектей заңдылық",
+          explain: "Екі бірдей R тізбектей → Rқ=2R.",
+          mini: "10 Ω + 10 Ω = 20 Ω."
+        }
+      ]
+    },
+    t3: {
+      title: "Тест 3: Қуат, жұмыс, энергия",
+      questions: [
+        {
+          q: "Электр қуатының негізгі формуласы?",
+          opts: ["P = U·I", "P = U/I", "P = I/R", "P = R/U"],
+          correct: 0,
+          tag: "Қуат формуласы",
+          explain: "Қуат: P = U·I.",
+          mini: "U=12 В, I=2 A → P=24 Вт."
+        },
+        {
+          q: "Қуаттың өлшем бірлігі?",
+          opts: ["Ватт (W)", "Джоуль (J)", "Ом (Ω)", "Кулон (C)"],
+          correct: 0,
+          tag: "Өлшем бірліктер",
+          explain: "Қуат Ваттпен өлшенеді (Вт).",
+          mini: "1 Вт = 1 Дж/с."
+        },
+        {
+          q: "Токтың жұмысы (энергиясы) қалай табылады?",
+          opts: ["A = P·t", "A = U/I", "A = R·t", "A = I/t"],
+          correct: 0,
+          tag: "Жұмыс/энергия",
+          explain: "Энергия (жұмыс): A = P·t. Сондай-ақ A=UIt.",
+          mini: "P=100 Вт, t=10 с → A=1000 Дж."
+        },
+        {
+          q: "U=220 В, I=2 A болса, P=?",
+          opts: ["110 Вт", "440 Вт", "220 Вт", "222 Вт"],
+          correct: 1,
+          tag: "Қуат есеп",
+          explain: "P=U·I=220·2=440 Вт.",
+          mini: "Есептеуде бірлікке мән бер."
+        },
+        {
+          q: "P=60 Вт шам 5 минут жанса, энергия (A) қанша? (секундпен есепте)",
+          opts: ["300 Дж", "18000 Дж", "1200 Дж", "600 Дж"],
+          correct: 1,
+          tag: "Уақытты ауыстыру",
+          explain: "t=5 мин=300 с. A=P·t=60·300=18000 Дж.",
+          mini: "Минутты әрқашан секундқа айналдыр!"
+        },
+        {
+          q: "Қуаттың басқа түрі (Ом заңы арқылы) қайсысы дұрыс?",
+          opts: ["P = I^2·R", "P = R^2·I", "P = U^2·I", "P = I/R^2"],
+          correct: 0,
+          tag: "Қуат түрлендіру",
+          explain: "P=UI және U=IR → P=I^2R. Сондай-ақ P=U^2/R.",
+          mini: "Екі формула да дұрыс: P=I^2R және P=U^2/R."
+        },
+        {
+          q: "U тұрақты болса, R азайса, қуат P қалай өзгереді? (P=U^2/R)",
+          opts: ["Кемиді", "Артады", "Өзгермейді", "Нөл болады"],
+          correct: 1,
+          tag: "Тәуелділік (қуат)",
+          explain: "P=U^2/R. R азайса, бөлгіш азаяды → P артады.",
+          mini: "2 есе R азайса → P 2 есе өседі."
+        },
+        {
+          q: "I тұрақты болса, R артса, қуат P қалай өзгереді? (P=I^2R)",
+          opts: ["Кемиді", "Артады", "Өзгермейді", "Алдымен өседі, сосын кемиді"],
+          correct: 1,
+          tag: "Тәуелділік (қуат)",
+          explain: "P=I^2R. R артса → P артады.",
+          mini: "I бірдей болғанда, үлкен R көбірек қуат бөледі."
+        },
+        {
+          q: "A=UIt формуласында t қандай өлшем бірлікте болуы керек?",
+          opts: ["Минут", "Сағат", "Секунд", "Күн"],
+          correct: 2,
+          tag: "Өлшем бірліктер",
+          explain: "SI жүйесінде уақыт секундпен (с) алынады.",
+          mini: "1 сағат = 3600 с, 1 минут = 60 с."
+        },
+        {
+          q: "Электр энергиясын тұрмыста көбіне қандай бірлікпен өлшейді?",
+          opts: ["кВт·сағ", "Вт", "Ом", "Ампер"],
+          correct: 0,
+          tag: "Тұрмыстық энергия",
+          explain: "Үйде электр энергиясы кВт·сағ (kilowatt-hour) бірлігімен өлшенеді.",
+          mini: "1 кВт·сағ = 3.6×10^6 Дж."
+        }
       ]
     }
+  };
+
+  // =========================
+  // Состояние квиза
+  // =========================
+  let activeTestKey = null;
+  let idx = 0;
+  let score = 0;
+  let answered = false;
+  let wrongTags = {}; // tag -> count
+
+  const quizCard = document.getElementById('quizCard');
+  const resultsCard = document.getElementById('resultsCard');
+  const quizTitle = document.getElementById('quizTitle');
+  const progress = document.getElementById('progress');
+  const qText = document.getElementById('qText');
+  const optionsDiv = document.getElementById('options');
+  const feedback = document.getElementById('feedback');
+  const btnNext = document.getElementById('btnNext');
+  const btnFinish = document.getElementById('btnFinish');
+  const resultsText = document.getElementById('resultsText');
+  const topTagsDiv = document.getElementById('topTags');
+  const recsUl = document.getElementById('recs');
+
+  function resetQuiz() {
+    idx = 0; score = 0; answered = false; wrongTags = {};
+    feedback.textContent = "Жауап таңда...";
+    btnNext.disabled = true;
+    btnFinish.classList.add('hidden');
+    resultsCard.classList.add('hidden');
+    quizCard.classList.remove('hidden');
+  }
+
+  function startTest(key) {
+    activeTestKey = key;
+    resetQuiz();
+    quizTitle.textContent = TESTS[key].title;
+    renderQuestion();
+  }
+
+  function renderQuestion() {
+    const qs = TESTS[activeTestKey].questions;
+    const total = qs.length;
+    const item = qs[idx];
+    answered = false;
+    btnNext.disabled = true;
+
+    progress.textContent = `${idx+1}/${total}`;
+    qText.textContent = item.q;
+    optionsDiv.innerHTML = "";
+
+    item.opts.forEach((opt, i) => {
+      const b = document.createElement('button');
+      b.className = "opt";
+      b.textContent = opt;
+      b.onclick = () => choose(i);
+      optionsDiv.appendChild(b);
+    });
+
+    feedback.textContent = "Жауап таңда...";
+    btnFinish.classList.toggle('hidden', idx !== total-1);
+  }
+
+  function choose(choiceIndex) {
+    if (answered) return;
+    answered = true;
+
+    const item = TESTS[activeTestKey].questions[idx];
+    const correct = item.correct;
+
+    // Подсветка кнопок
+    const buttons = optionsDiv.querySelectorAll('button');
+    buttons.forEach((b, i) => {
+      if (i === correct) b.classList.add('good');
+      if (i === choiceIndex && i !== correct) b.classList.add('bad');
+      b.disabled = true;
+    });
+
+    if (choiceIndex === correct) {
+      score += 1;
+      feedback.textContent =
+`✅ Дұрыс!
+Түсіндірме: ${item.explain}
+Мини-мысал: ${item.mini}
+Tag: ${item.tag}`;
+    } else {
+      wrongTags[item.tag] = (wrongTags[item.tag] || 0) + 1;
+      feedback.textContent =
+`❌ Қате.
+Дұрыс жауап: ${item.opts[correct]}
+Түсіндірме: ${item.explain}
+Мини-мысал: ${item.mini}
+Қате түрі (tag): ${item.tag}`;
+    }
+
+    btnNext.disabled = false;
+  }
+
+  btnNext.addEventListener('click', () => {
+    const qs = TESTS[activeTestKey].questions;
+    if (idx < qs.length - 1) {
+      idx += 1;
+      renderQuestion();
+    } else {
+      finish();
+    }
+  });
+
+  btnFinish.addEventListener('click', finish);
+
+  function top3Tags() {
+    const pairs = Object.entries(wrongTags).sort((a,b)=>b[1]-a[1]);
+    return pairs.slice(0,3);
+  }
+
+  function buildRecommendations(tagsTop) {
+    const tags = tagsTop.map(x=>x[0]);
+    const recs = [];
+
+    // Простейшие рекомендации по тегам
+    if (tags.includes("Ом заңы формуласы") || tags.includes("Формуланы қолдану") || tags.includes("Формуланы түрлендіру")) {
+      recs.push("Ом заңы: I=U/R, U=IR, R=U/I — 3 формуланы жаттап, 5 есеп шығарып бекіт.");
+    }
+    if (tags.includes("Параллель қосу") || tags.includes("Параллель есеп") || tags.includes("Параллель қасиет") || tags.includes("Параллель ток")) {
+      recs.push("Параллель қосу: 1/R=1/R1+1/R2, U бірдей, I бөлінеді — 3 мысал есеп шығар.");
+    }
+    if (tags.includes("Тізбектей қосу") || tags.includes("Тізбектей есеп") || tags.includes("Тізбектей қасиет") || tags.includes("Тізбектей кернеу")) {
+      recs.push("Тізбектей қосу: R қосылады, I бірдей, U бөлінеді — 3 есеп жаса.");
+    }
+    if (tags.includes("Қуат формуласы") || tags.includes("Қуат түрлендіру") || tags.includes("Жұмыс/энергия") || tags.includes("Уақытты ауыстыру") || tags.includes("Тәуелділік (қуат)")) {
+      recs.push("Қуат/энергия: P=UI, P=I²R, P=U²/R, A=Pt=UIt — уақытты секундқа айналдыруды ұмытпа.");
+    }
+    if (tags.includes("Өлшем бірліктер")) {
+      recs.push("Өлшем бірліктер: I—A, U—V, R—Ω, P—W, A—J, энергия—кВт·сағ (тұрмыста).");
+    }
+
+    // Толтыру: ең кемі 3 ұсыныс болсын
+    while (recs.length < 3) recs.push("Әлсіз тақырып бойынша 5 қысқа есеп шығарып, қателескен тегтерді қайта қара.");
+
+    return recs.slice(0,3);
+  }
+
+  function finish() {
+    quizCard.classList.add('hidden');
+    resultsCard.classList.remove('hidden');
+
+    const total = TESTS[activeTestKey].questions.length;
+    const percent = Math.round((score/total)*100);
+
+    const top = top3Tags(); // [ [tag, count], ... ]
+    const name = document.getElementById('fio').value || "Без имени";
+    const klass = document.getElementById('klass').value || "10";
+
+    resultsText.textContent =
+`Оқушы: ${name} (${klass})
+Тест: ${TESTS[activeTestKey].title}
+Дұрыс жауап: ${score}/${total}
+Нәтиже: ${percent}%`;
+
+    // Топ-3 тегтер көрсету
+    topTagsDiv.innerHTML = "<h3>Топ-3 қате түрі (tags)</h3>";
+    if (top.length === 0) {
+      topTagsDiv.innerHTML += `<div class="pill good">Қате жоқ 🎉</div>`;
+    } else {
+      top.forEach(([tag, cnt]) => {
+        const span = document.createElement('span');
+        span.className = "pill bad";
+        span.textContent = `${tag} — ${cnt}`;
+        topTagsDiv.appendChild(span);
+      });
+    }
+
+    // Ұсыныстар
+    const recs = buildRecommendations(top);
+    recsUl.innerHTML = "";
+    recs.forEach(r => {
+      const li = document.createElement('li');
+      li.textContent = r;
+      recsUl.appendChild(li);
+    });
+
+    // Limited Memory summary (демо): біз дәл осы 3 нәрсені сақтай аламыз
+    window.__LM_SUMMARY__ = {
+      full_name: name,
+      class: klass,
+      last_seen: new Date().toISOString(),
+      top_misconceptions: top.map(x=>x[0]),
+      recommendations: recs,
+      topic_mastery_hint: {
+        // Простой намек: по какому тесту прошёл
+        test_completed: activeTestKey,
+        score_percent: percent
+      }
+    };
+  }
+
+  document.getElementById('btnBack').addEventListener('click', () => {
+    resultsCard.classList.add('hidden');
+  });
+
+  // Кнопки выбора тестов
+  document.getElementById('btnT1').addEventListener('click', ()=>startTest('t1'));
+  document.getElementById('btnT2').addEventListener('click', ()=>startTest('t2'));
+  document.getElementById('btnT3').addEventListener('click', ()=>startTest('t3'));
+
+  // =========================
+  // Perplexity AI: отправка вопроса
+  // =========================
+  function buildSummaryForAI() {
+    const fio = document.getElementById('fio').value || "Без имени";
+    const klass = document.getElementById('klass').value || "10";
+    // Если уже проходил тест — берём LM summary, иначе — базовая заглушка
+    return window.__LM_SUMMARY__ || {
+      full_name: fio,
+      class: klass,
+      top_misconceptions: ["(тест әлі тапсырылмады)"],
+      recommendations: ["Тест тапсырып көр, сонда ЖИ дәл ұсыныс береді."]
+    };
   }
 
   document.getElementById('askBtn').addEventListener('click', async () => {
-    const question = document.getElementById('q').value.trim();
+    const question = document.getElementById('aiQ').value.trim();
     if (!question) return alert("Сұрақ жаз!");
 
-    document.getElementById('a').textContent = "Жауап күтіп тұр...";
-    const res = await fetch("/.netlify/functions/ask", {
-      method: "POST",
-      headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({ question, studentSummary: buildSummary() })
-    });
-
-    const data = await res.json();
-    document.getElementById('a').textContent = data.answer || data.error || "Қате";
+    document.getElementById('aiA').textContent = "Жауап күтіп тұр...";
+    try {
+      const res = await fetch("/.netlify/functions/ask", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ question, studentSummary: buildSummaryForAI() })
+      });
+      const data = await res.json();
+      document.getElementById('aiA').textContent = data.answer || data.error || "Қате";
+    } catch (e) {
+      document.getElementById('aiA').textContent = "Қате: Netlify функция/интернет істемей тұр";
+    }
   });
 </script>
 </body>
