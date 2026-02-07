@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>EduPhysics AI</title>
+  <style>
+    body{font-family:system-ui,Arial;max-width:900px;margin:20px auto;padding:0 12px}
+    .card{border:1px solid #ddd;border-radius:14px;padding:14px;margin:12px 0}
+    input,textarea,button{width:100%;padding:10px;border-radius:10px;border:1px solid #ccc;font-size:16px}
+    button{cursor:pointer}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    pre{white-space:pre-wrap}
+  </style>
+</head>
+<body>
+  <h1>EduPhysics AI</h1>
+
+  <div class="card">
+    <h2>Оқушы</h2>
+    <div class="row">
+      <input id="fio" placeholder="ФИО" />
+      <input id="klass" placeholder="Класс (например 10А)" />
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Perplexity AI Tutor</h2>
+    <textarea id="q" rows="3" placeholder="Сұрағыңды жаз..."></textarea>
+    <button id="askBtn">Сұрау (ЖИ)</button>
+    <h3>Жауап:</h3>
+    <pre id="a">...</pre>
+  </div>
+
+<script>
+  function buildSummary() {
+    return {
+      full_name: document.getElementById('fio').value || "Без имени",
+      class: document.getElementById('klass').value || "10",
+      topic_mastery: { E: 60, phi: 50, U: 55, A: 45 },
+      top_misconceptions: [
+        "Путает E и φ",
+        "Думает, что E ~ 1/r",
+        "Не понимает работу поля"
+      ],
+      recommendations: [
+        "Повтори: E = kq/r^2",
+        "Разница потенциалов: U = A/q",
+        "Реши 2 задачи на работу поля"
+      ]
+    }
+  }
+
+  document.getElementById('askBtn').addEventListener('click', async () => {
+    const question = document.getElementById('q').value.trim();
+    if (!question) return alert("Сұрақ жаз!");
+
+    document.getElementById('a').textContent = "Жауап күтіп тұр...";
+    const res = await fetch("/.netlify/functions/ask", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ question, studentSummary: buildSummary() })
+    });
+
+    const data = await res.json();
+    document.getElementById('a').textContent = data.answer || data.error || "Қате";
+  });
+</script>
+</body>
+</html>
