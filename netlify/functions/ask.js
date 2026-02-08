@@ -1,47 +1,80 @@
-export async function handler(event) {
+// netlify/functions/ask.js
+export default async (req, context) => {
   try {
-    if (event.httpMethod !== "POST") {
-      return { statusCode: 405, body: "Method Not Allowed" };
+    if (req.method !== "POST") {
+      return new Response(JSON.stringify({ error: "Method not allowed" }), {
+        status: 405,
+        headers: { "Content-Type": "application/json" }
+      });
     }
 
-    const { question, studentSummary } = JSON.parse(event.body || "{}");
-    if (!question) {
-      return { statusCode: 400, body: JSON.stringify({ error: "Нет вопроса" }) };
+    const key = process.env.PPLX_API_KEY;
+    if (!key) {
+      return new Response(JSON.stringify({ error: "Нет PPLX_API_KEY в Netlify" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" }
+      });
     }
 
-    const apiKey = process.env.PPLX_API_KEY;
-    if (!apiKey) {
-      return { statusCode: 500, body: JSON.stringify({ error: "Нет PPLX_API_KEY в Netlify" }) };
-    }
+    const body = await req.json();
 
-    const system = `Ты тьютор по физике (10 класс). Отвечай кратко и понятно.
-Используй только краткое резюме ученика (limited memory) ниже, не проси личные данные.
-Если видишь типичную ошибку — назови ее и дай 1 мини-пример.
-Резюме: ${JSON.stringify(studentSummary || {})}`;
+    // Простая сборка промпта
+    const prompt =
+`Сен физика мұғалімі-тюторсың. Тіл: қазақша.
+Тақырып: ${body.topic || "Тұрақты электр тогы"}.
+Сұрақ: ${body.question}
+Нұсқалар: ${Array.isArray(body.options) ? body.options.map((o,i)=>`${String.fromCharCode(65+i)}. ${o}`).join(" | ") : ""}
+Оқушы таңдауы: ${body.chosen}
+Дұрыс жауап: ${body.correct}
+Қате тег: ${body.tag || "-"}
+Қысқа түсіндірме (берілген): ${body.short_explain || "-"}
 
-    const resp = await fetch("https://api.perplexity.ai/chat/completions", {
+Тапсырма:
+1) Дұрыс жауап неге дұрыс екенін түсіндір (формула/логикамен).
+2) Оқушы таңдаған қате жауап неге қате екенін түсіндір (қай жерде шатастырады).
+3) 2–3 қысқа кеңес бер.
+4) Соңында 1 шағын ұқсас есеп/мини-сұрақ бер де, жауабын да бірден көрсет.`;
+
+    // Perplexity API: модель атауы аккаунтқа қарай өзгеруі мүмкін.
+    // Көп жағдайда "sonar" / "sonar-pro" сияқты жұмыс істейді.
+    const pplxRes = await fetch("https://api.perplexity.ai/chat/completions", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${apiKey}`,
+        "Authorization": `Bearer ${key}`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
         model: "sonar",
         messages: [
-          { role: "system", content: system },
-          { role: "user", content: question }
-        ]
+          { role: "system", content: "You are a helpful physics tutor." },
+          { role: "user", content: prompt }
+        ],
+        temperature: 0.2
       })
     });
 
-    const data = await resp.json();
-    const answer = data?.choices?.[0]?.message?.content;
+    const json = await pplxRes.json().catch(()=> ({}));
+    if (!pplxRes.ok) {
+      return new Response(JSON.stringify({ error: json?.error?.message || "Perplexity error", raw: json }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
 
-    return {
-      statusCode: 200,
-      body: JSON.stringify({ answer: answer || "Жауап шықпады" })
-    };
+    const answer =
+      json?.choices?.[0]?.message?.content ||
+      json?.choices?.[0]?.text ||
+      "";
+
+    return new Response(JSON.stringify({ answer }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" }
+    });
+
   } catch (e) {
-    return { statusCode: 500, body: JSON.stringify({ error: "Серверная ошибка" }) };
+    return new Response(JSON.stringify({ error: e?.message || String(e) }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" }
+    });
   }
-}
+};
