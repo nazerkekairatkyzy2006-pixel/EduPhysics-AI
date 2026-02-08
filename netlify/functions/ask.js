@@ -1,18 +1,6 @@
-// netlify/functions/ask.js
-// Кілтсіз "stub": сайтта сыртқы ЖИ қолданылмайды.
-// (index.html ішіндегі түсіндірме offline түрде беріледі)
-
-export default async (req) => {
+export default async () => {
   return new Response(
-    JSON.stringify({
-      ok: true,
-      mode: "offline",
-      answer:
-        "Бұл жобада сыртқы ЖИ (API) қолданылмайды. Түсіндірме сайттың ішінде (offline) беріледі.",
-    }),
-    {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    }
+    JSON.stringify({ ok: true, message: "AI API disabled. Offline explanations only." }),
+    { status: 200, headers: { "Content-Type": "application/json" } }
   );
 };
