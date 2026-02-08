@@ -973,6 +973,57 @@
 
     // init
     renderTabs();
+    function encodeFormData(data){
+  return Object.keys(data)
+    .map(k => encodeURIComponent(k) + "=" + encodeURIComponent(data[k]))
+    .join("&");
+}
+
+async function submitResultsToNetlify(payload){
+  try{
+    const res = await fetch("/", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: encodeFormData({
+        "form-name": "results",
+        ...payload
+      })
+    });
+    return res.ok;
+  }catch(e){
+    return false;
+  }
+}
+
   </script>
+  <!-- =========================
+     NETLIFY FORMS (HIDDEN)
+     Нәтижені мұғалімге жіберу үшін
+     ========================= -->
+<form name="results" method="POST" data-netlify="true" netlify-honeypot="bot-field" hidden>
+  <input type="hidden" name="form-name" value="results" />
+  <p hidden>
+    <label>Don’t fill this out: <input name="bot-field" /></label>
+  </p>
+
+  <!-- Оқушы деректері -->
+  <input type="text" name="student_name" />
+  <input type="text" name="student_class" />
+
+  <!-- Тест деректері -->
+  <input type="text" name="test_title" />
+  <input type="text" name="score" />
+  <input type="text" name="percent" />
+  <input type="text" name="time_spent_sec" />
+  <input type="text" name="datetime" />
+
+  <!-- Анализ -->
+  <textarea name="top_tags"></textarea>
+  <textarea name="recommendations"></textarea>
+
+  <!-- Техникалық -->
+  <textarea name="raw_json"></textarea>
+</form>
+
 </body>
 </html>
